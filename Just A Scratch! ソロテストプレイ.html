@@ -1,0 +1,228 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Just A Scratch! ソロテストプレイ</title><style>
+:root{--bg:#f4f1ea;--fg:#1b1530;--pn:#fff;--bd:#c9c3b6;--a:#ffb3b3;--k:#a8e890;--s:#c3a3e8;--ac:#b34a00;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17141f;--fg:#ece8f5;--pn:#241f30;--bd:#4a4360;--a:#8a3d46;--k:#3f7a35;--s:#6b4e9a;--ac:#ffa45c}}
+:root[data-theme="dark"]{--bg:#17141f;--fg:#ece8f5;--pn:#241f30;--bd:#4a4360;--a:#8a3d46;--k:#3f7a35;--s:#6b4e9a;--ac:#ffa45c}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:'Noto Sans JP','Hiragino Sans',sans-serif;font-size:16px;line-height:1.5}
+#app{max-width:760px;margin:0 auto;padding:12px}h1{font-size:20px;margin:4px 0}.m{color:var(--ac);font-size:14px}
+.pn{background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:8px 0}
+.hp{display:inline-block;border:1px solid var(--bd);border-radius:6px;padding:0 8px;margin:4px 4px 0 0;font-size:13px}.hp.u{border-color:var(--ac);color:var(--ac)}.hp.x{opacity:.45;text-decoration:line-through}
+#log{height:210px;overflow-y:auto;background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;font-size:14px;margin:8px 0}
+.pr{font-weight:700;margin:8px 0 4px}.hand{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;color:var(--fg);border:1px solid var(--bd);background:var(--pn);border-radius:8px;padding:6px 14px;cursor:pointer}
+.c.a{background:var(--a)}.c.k{background:var(--k)}.c.s{background:var(--s)}.c.on{outline:3px solid var(--ac);transform:translateY(-4px)}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.acts button,.go{font-weight:700;border-color:var(--ac)}.er{color:var(--ac);font-size:14px}
+select{font:inherit}
+</style></head><body><div id="app"></div><script>'use strict';
+(function(root){
+const AT=['刺突','振り下ろし','スイング'],KI='キック',SH='押しのけ';
+const WP={
+素手:{d:[.5,.5,.5],s:3,h:0,nog:1,noInit:1,direct:1,noDeb:1},
+ナイフ:{d:[1,1,1],s:6,h:1,knife:1},
+直剣:{d:[1.5,1.5,1.5],s:4,h:1},
+レイピア:{d:[2.5,1,1.5],s:4,h:1},
+手斧:{d:[1,3,2],s:3,h:1},
+メッサー:{d:[1,2,3],s:4,h:2},
+槍:{d:[4,1,1],s:3,h:2},
+ロングソード:{d:[2,2,2],s:3,h:2},
+大剣:{d:[2,3,4],s:2,h:2},
+ハルバード:{d:[2,5,2],s:2,h:2},
+カタール:{d:[4,4,4],s:3,h:2,noInit:1,kat:1},
+ミョルニル:{d:[3,5,5],s:1,h:2,myo:1}};
+const SD={なし:{m:0,dur:0},小盾:{m:0,dur:5},中盾:{m:-1,dur:5,ret:1},大盾:{m:-2,dur:6,ret:1}};
+const rnd=n=>Math.floor(Math.random()*n);
+const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const W=p=>WP[p.wk];
+function draw(p,n){while(n-->0){if(!p.deck.length){p.deck=shuf(p.disc);p.disc=[]}if(!p.deck.length)break;p.hand.push(p.deck.pop())}}
+function mkP(name,wk,sh,dualOpt,ag){
+ const deck=[];AT.forEach(t=>{for(let i=0;i<6;i++)deck.push(t)});for(let i=0;i<5;i++)deck.push(KI);deck.push(SH);
+ const one=WP[wk].h==1;sh=one?sh:'なし';
+ const p={name,wk,sh,dur:SD[sh].dur,dualOpt:one&&sh=='なし'&&dualOpt?1:0,dual:0,myo:0,deck:shuf(deck),disc:[],hand:[],
+  hp:shuf(['頭部','頭部','左腕','左腕','右腕','右腕']).map(t=>({t,s:0})),hist:[],dL:0,dR:0,dead:false,ag};
+ draw(p,6);return p}
+function spd(p){let s=W(p).s;if(p.myo)s=2;if(p.dual)s=Math.ceil(s/2);return Math.max(1,s+SD[p.sh].m)}
+const dmg=(p,t,n)=>W(p).d[AT.indexOf(t)]*(p.dual?2:1)+(n-1);
+function rm(p,k){const c=[];while(k-->0&&p.hand.length)c.push(p.hand.splice(rnd(p.hand.length),1)[0]);p.disc.push(...c);return c}
+function arm(G,p){
+ if(p.dL&&p.dR){p.wk='素手';p.sh='なし';p.dual=0;p.dualOpt=0;G.log(`${p.name}は両腕を失い、頭突きしかできない`)}
+ else if(W(p).h==2){p.wk='ナイフ';G.log(`${p.name}は両手武器が使えず、ナイフに変更`)}
+ else if(W(p).h==1){p.sh='なし';p.dual=0;p.dualOpt=0;G.log(`${p.name}は装備枠が減り、盾と二刀流を失った`)}}
+function loseHP(G,p,nd){
+ let c=p.hp.filter(x=>x.s==1);if(!c.length)c=p.hp.filter(x=>x.s==0);if(!c.length)return;
+ const x=c[rnd(c.length)];x.s=2;G.log(`${p.name}のHP「${x.t}」を失った`);
+ if(!nd){p.hist.push(x.t);const h=p.hist,n=h.length;
+  if(n>1&&h[n-1]==h[n-2]){if(x.t=='頭部'){p.dead=true;G.log(`${p.name}は頭部を連続で失い、即死`)}else{if(x.t=='左腕')p.dL=1;else p.dR=1;arm(G,p)}}}
+ if(p.hp.every(y=>y.s==2))p.dead=true}
+function flip(G,p){const c=p.hp.filter(x=>x.s==0);if(c.length){const x=c[rnd(c.length)];x.s=1;G.log(`${p.name}のHP「${x.t}」が表向きになった`)}}
+function hurt(G,p,d,o){o=o||{};
+ const I=Math.floor(d),H=d-I>0?1:0;let pay=0;
+ if(!o.direct){pay=Math.min(I+H,p.hand.length);rm(p,pay);if(o.extra)rm(p,1)}
+ G.log(`${p.name}に${d}ダメージ`+(o.direct?'(HPに直接)':`(手札${pay+(o.extra?1:0)}枚まで)`));
+ const fi=o.direct?I:Math.max(0,I-pay),fh=o.direct?H:(H&&pay<I+H?1:0);
+ for(let i=0;i<fi&&!p.dead;i++)loseHP(G,p,o.nd);
+ for(let i=0;i<fh&&!p.dead;i++)flip(G,p)}
+const hit=(X)=>({direct:W(X).direct,nd:W(X).noDeb,extra:W(X).knife});
+function guardRes(G,P,cards,n){
+ const r=n+(W(P).h==1&&P.sh=='なし'?1:0),g=cards.length,s=SD[P.sh];
+ if(g<r){const ex=r-g+1;if(P.hand.length<ex){P.disc.push(...cards);G.log(`${P.name}は手札が足りず、ガード失敗`);return false}rm(P,ex);G.log(`${P.name}のガードは枚数不足。さらに${ex}枚を捨てる`)}
+ const used=cards.slice();
+ if(P.sh!='なし'){P.dur-=n>=2?2:1;if(s.ret&&used.length)P.hand.push(used.pop());G.log(`${P.sh}の耐久は${Math.max(P.dur,0)}`);if(P.dur<=0){G.log(`${P.sh}が壊れた`);P.sh='なし'}}
+ P.disc.push(...used);G.log(`${P.name}のガード成功`);return true}
+const canI=p=>!W(p).noInit;
+function initOf(G){const[a,b]=G.P;
+ if(G.nx&&canI(G.nx))return G.nx;
+ if(G.pp){const o=G.pp==a?b:a;if(canI(o))return o}
+ if(G.hh&&canI(G.hh))return G.hh;
+ if(canI(a)&&!canI(b))return a;if(canI(b)&&!canI(a))return b;
+ for(;;){const x=spd(a)+1+rnd(6),y=spd(b)+1+rnd(6);G.log(`主導権の判定: ${a.name} ${x} 対 ${b.name} ${y}`);if(x!=y)return x>y?a:b}}
+function legal(p,c,x){
+ if(!x)return false;const h=p.hand;
+ if(x.k=='pass')return c.role=='att'&&c.n>=1;
+ if(!Array.isArray(x.i)||!x.i.length||new Set(x.i).size!=x.i.length||x.i.some(i=>!(i>=0&&i<h.length)))return false;
+ const cs=x.i.map(i=>h[i]);
+ if(x.k=='attack'||x.k=='counter')return AT.includes(cs[0])&&cs.every(v=>v==cs[0]);
+ if(x.k=='kick')return cs.every(v=>v==KI);
+ if(x.k=='shove')return cs.length==1&&cs[0]==SH;
+ if(x.k=='guard')return !W(p).nog;
+ return false}
+async function ask(G,p,c){c.p=p;c.G=G;let x=await p.ag(c);
+ if(c.role=='att'||c.role=='def'){if(!legal(p,c,x))x=fallback(p,c)}return x}
+function fallback(p,c){const h=p.hand;
+ if(c.role=='def'||c.role=='att'){
+  const a=h.findIndex(v=>AT.includes(v));if(a>=0)return{k:c.role=='def'?'counter':'attack',i:[a]};
+  const k=h.indexOf(KI);if(k>=0)return{k:'kick',i:[k]};
+  const s=h.indexOf(SH);return{k:'shove',i:[s]}}}
+function take(p,i){const c=i.map(j=>p.hand[j]);i.slice().sort((a,b)=>b-a).forEach(j=>p.hand.splice(j,1));return c}
+async function exch(G,A,D,a,dp,kn){
+ let d={k:'none',cards:[]};
+ if(D.hand.length){const x=await ask(G,D,{role:'def',n:a.n,dp,kn});d={k:x.k,cards:take(D,x.i)};d.type=x.k=='counter'?d.cards[0]:null}
+ const nm={attack:'攻撃',counter:'反撃',kick:'キック',guard:'ガード',shove:'押しのけ',none:'(対処できない)'};
+ const lab=(s,x)=>`${s.name}:${nm[x.k]}${x.type?x.type:''}${x.cards&&x.cards.length?'×'+x.cards.length:(x.n?'×'+x.n:'')}`;
+ G.log(`オープン! ${lab(A,a)} 対 ${lab(D,d)}`);await G.sl(700);
+ return clash(G,A,D,a,d,dp)}
+async function freeAtk(G,X,Y){
+ G.log(`${X.name}のキック成功。続けて1回、対処不可の攻撃`);
+ if(!X.hand.some(v=>AT.includes(v))){G.log('攻撃できる手札が無い');return}
+ const x=await ask(G,X,{role:'free'});if(!x||x.k!='attack'||!legal(X,{role:'x'},x))return;
+ const c=take(X,x.i);X.disc.push(...c);const o=hit(X);o.direct=W(X).direct||W(X).knife;
+ G.log(`${X.name}の攻撃: ${c[0]}×${c.length}`);hurt(G,Y,dmg(X,c[0],c.length),o);G.hh=X}
+async function clash(G,A,D,a,d,dp){
+ const k=a.k,e=d.k,n=a.n,m=d.cards.length,dis=(p,c)=>p.disc.push(...c),over=()=>G.over();
+ const land=(X,Y,t,c)=>{hurt(G,Y,dmg(X,t,c),hit(X));G.hh=X};
+ if(k=='attack'){
+  if(e=='counter'){
+   if(d.type==a.type&&m>=n){dis(A,a.cards);
+    if(dp==0){D.hand.push(...d.cards);G.log('反撃は大成功(パリィ)! 出したカードを回収');if(W(D).kat){G.log('カタールの追撃');hurt(G,A,1,{direct:1})}}
+    else{dis(D,d.cards);G.log('反撃は成功')}
+    if(over())return true;return exch(G,D,A,{k:'attack',type:d.type,n:m,cards:[]},dp+1,{type:d.type,n:m})}
+   const have=D.hand.filter(v=>v==a.type).length;
+   if(have>=n){D.hand.push(...d.cards);const c=[];for(let i=0;i<n;i++)c.push(D.hand.splice(D.hand.indexOf(a.type),1)[0]);dis(D,c);dis(A,a.cards);
+    G.log('反撃は成功。一致するカードに出し直した');return exch(G,D,A,{k:'attack',type:a.type,n,cards:[]},dp+1,{type:a.type,n})}
+   dis(D,d.cards);dis(A,a.cards);G.log('反撃は失敗');land(A,D,a.type,n);return over()}
+  if(e=='guard'){dis(A,a.cards);if(!guardRes(G,D,d.cards,n))land(A,D,a.type,n);return over()}
+  if(e=='shove'){dis(A,a.cards);dis(D,d.cards);G.nx=D;G.log(`押しのけ成功。ターン終了(次の主導権は${D.name})`);return true}
+  dis(A,a.cards);dis(D,d.cards);land(A,D,a.type,n);return over()}
+ if(k=='kick'){
+  dis(A,a.cards);
+  if(e=='counter'){dis(D,d.cards);G.log('キックを読まれた! 反撃のフリーヒット');land(D,A,d.type,m);return over()}
+  if(e=='guard'){dis(D,d.cards);await freeAtk(G,A,D);return over()}
+  if(e=='shove'){dis(D,d.cards);G.nx=D;G.log(`押しのけ成功。ターン終了(次の主導権は${D.name})`);return true}
+  dis(D,d.cards);return false}
+ if(k=='guard'){
+  if(e=='counter'){dis(D,d.cards);if(!guardRes(G,A,a.cards,m))land(D,A,d.type,m);return over()}
+  if(e=='kick'){dis(A,a.cards);dis(D,d.cards);await freeAtk(G,D,A);return over()}
+  dis(A,a.cards);dis(D,d.cards);return false}
+ if(k=='shove'){
+  dis(A,a.cards);dis(D,d.cards);
+  if(e=='counter'||e=='kick'){G.nx=A;G.log(`押しのけ成功。ターン終了(次の主導権は${A.name})`);return true}
+  return false}
+ return false}
+async function turn(G){
+ const P=G.P;P.forEach(p=>{p.myo=0;p.dual=0});
+ for(const p of P){
+  if(W(p).myo&&p.hand.length){const i=await ask(G,p,{role:'myo'});if(i>=0){p.disc.push(...p.hand.splice(i,1));p.myo=1;G.log(`${p.name}は手札を1枚捨て、スピードを2にした`)}}
+  if(p.dualOpt&&W(p).h==1&&p.sh=='なし'&&await ask(G,p,{role:'dual'})){p.dual=1;G.log(`${p.name}は二刀流で戦う`)}}
+ const A=initOf(G),D=A==P[0]?P[1]:P[0];G.nx=G.pp=G.hh=null;
+ G.log(`── ターン${G.t}: ${A.name}が攻撃側(スピード${spd(A)}) ──`);G.turnInfo={A,D};
+ let n=0,end=false;
+ while(!end&&n<spd(A)&&!G.over()){
+  if(!A.hand.length){G.log(`${A.name}は手札が無く、パス`);G.pp=A;break}
+  const a=await ask(G,A,{role:'att',n});
+  if(a.k=='pass'){G.log(`${A.name}はパス`);G.pp=A;break}
+  const cards=take(A,a.i);const x={k:a.k,cards,n:cards.length,type:a.k=='attack'?cards[0]:null};
+  G.log(`${A.name}が行動${n+1}回目を宣言(カード${cards.length}枚を伏せた)`);
+  end=await exch(G,A,D,x,0,null);n++}
+ if(G.over())return;
+ for(const p of P){const di=await ask(G,p,{role:'dis'});if(di&&di.length){const c=take(p,di.filter(i=>i>=0&&i<p.hand.length));p.disc.push(...c)}draw(p,6-p.hand.length)}
+ G.log('ターン終了。手札を6枚まで補充')}
+async function play(G){while(!G.over()&&G.t<150){G.t++;await turn(G)}return G.P.find(p=>!p.dead)||null}
+const cnt=(h,t)=>h.filter(v=>v==t).length;
+const idx=(h,t,k)=>{const r=[];h.forEach((v,i)=>{if(v==t&&r.length<k)r.push(i)});return r};
+function best(h){let b=null,m=0;shuf(AT.slice()).forEach(t=>{const c=cnt(h,t);if(c>m){m=c;b=t}});return b}
+function pick(o){let s=o.reduce((a,x)=>a+x[1],0),r=Math.random()*s;for(const x of o){if((r-=x[1])<0)return x[0]}return o[0][0]}
+async function cpu(c){const p=c.p,h=p.hand,w=W(p);
+ if(c.role=='myo')return h.length>2&&Math.random()<.5?rnd(h.length):-1;
+ if(c.role=='dual')return Math.random()<.5;
+ if(c.role=='dis')return [];
+ if(c.role=='free'){const t=best(h);return t?{k:'attack',i:idx(h,t,Math.min(cnt(h,t),Math.random()<.35?2:1))}:{k:'skip'}}
+ const t=best(h),r=Math.random(),o=[];
+ if(c.role=='att'){
+  if(c.n>=1&&r<.15)return{k:'pass'};
+  if(t)o.push(['attack',50]);if(cnt(h,KI))o.push(['kick',16]);if(!w.nog)o.push(['guard',12]);if(cnt(h,SH))o.push(['shove',5])}
+ else{
+  if(!w.nog&&h.length>=c.n+(w.h==1&&p.sh=='なし'?1:0))o.push(['guard',40]);
+  if(t)o.push(['counter',c.kn?45:28]);if(cnt(h,KI)&&!c.kn)o.push(['kick',14]);if(cnt(h,SH))o.push(['shove',8])}
+ if(!o.length)return fallback(p,c);
+ const k=pick(o),q=Math.random();
+ if(k=='attack')return{k,i:idx(h,t,Math.min(cnt(h,t),q<.65?1:q<.9?2:3))};
+ if(k=='counter'){const ty=c.kn?c.kn.type:t,need=c.kn?c.kn.n:c.n;let tt=ty;if(!c.kn){const ok=AT.filter(x=>cnt(h,x)>=need);if(ok.length)tt=ok[rnd(ok.length)]}
+  if(!tt||!cnt(h,tt))tt=t;return{k,i:idx(h,tt,Math.min(cnt(h,tt),Math.max(need,1)))}}
+ if(k=='kick')return{k,i:idx(h,KI,Math.min(cnt(h,KI),q<.7?1:2))};
+ if(k=='shove')return{k,i:idx(h,SH,1)};
+ let g=c.role=='def'?c.n+(w.h==1&&p.sh=='なし'?1:0):1+rnd(2);g=Math.max(1,Math.min(g,h.length));
+ const order=h.map((v,i)=>[i,v==SH?3:AT.includes(v)&&v==t?2:v==KI?1:0]).sort((x,y)=>x[1]-y[1]||Math.random()-.5).slice(0,g).map(x=>x[0]);
+ return{k:'guard',i:order}}
+const API={AT,KI,SH,WP,SD,mkP,play,cpu,spd,W,dmg,legal,cnt,idx,rnd,mkG:(P,log)=>({P,log,t:0,nx:null,pp:null,hh:null,sl:()=>Promise.resolve(),over(){return P.some(p=>p.dead)}})};
+if(typeof module!='undefined')module.exports=API;else root.JAS=API;
+})(this);
+
+const J=JAS,$=s=>document.querySelector(s);let G=null,L=[],U=null,fin=0;const app=$('#app');
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const col=c=>J.AT.includes(c)?'a':c==J.KI?'k':'s';
+const WN=Object.keys(J.WP).filter(n=>n!='素手');
+const wl=n=>`<option value="${n}">${n}(${['','片手','両手'][J.WP[n].h]} S${J.WP[n].s})</option>`;
+function setup(){return `<h1>Just A Scratch! ソロテストプレイ</h1><p class="m">CPUと対戦して、ルールを一人で試せます。CPUはルールの範囲でランダム寄りに選びます(強さの検証用ではありません)。</p>
+<div class="pn"><b>あなた</b><br>武器 <select id="w1">${WN.map(wl).join('')}</select> 盾 <select id="s1"><option>なし</option><option>小盾</option><option>中盾</option><option>大盾</option></select> <label><input type="checkbox" id="d1">二刀流</label></div>
+<div class="pn"><b>CPU</b><br>武器 <select id="w2"><option value="random">ランダム</option>${WN.map(wl).join('')}</select> 盾 <select id="s2"><option>なし</option><option>小盾</option><option>中盾</option><option>大盾</option></select> <label><input type="checkbox" id="d2">二刀流</label></div>
+<p class="m">盾と二刀流は片手武器だけに効きます(二刀流は盾なし)。</p><button class="go" data-a="go">開始</button>`}
+function hpH(p){return p.hp.map(x=>x.s==2?`<span class="hp x">✕${x.t}</span>`:x.s==1?`<span class="hp u">${x.t}(表)</span>`:'<span class="hp">?</span>').join('')}
+function panel(p){return `<div class="pn"><b>${p.name}</b> ${p.wk}${p.sh!='なし'?'+'+p.sh+'(耐久'+Math.max(p.dur,0)+')':''}${p.dual?' 二刀流':''} スピード${J.spd(p)}<br>手札${p.hand.length} 山札${p.deck.length} 捨て札${p.disc.length}<div>${hpH(p)}</div></div>`}
+function render(){
+ if(!G){app.innerHTML=setup();return}
+ const[me,cp]=G.P;
+ let h=`<div class="m">ターン${G.t}${G.turnInfo?' / 攻撃側: '+G.turnInfo.A.name:''}</div>${panel(cp)}<div id="log">${L.slice(-60).map(esc).join('<br>')}</div>${panel(me)}`;
+ if(U){h+=`<div class="pr">${esc(U.msg)}</div><div class="hand">${me.hand.map((c,i)=>`<button class="c ${col(c)}${U.sel.has(i)?' on':''}" data-i="${i}">${c}</button>`).join('')}</div><div class="acts">${U.btns.map(b=>`<button data-a="${b[0]}">${b[1]}</button>`).join('')}</div><div class="er">${esc(U.err||'')}</div>`}
+ else if(fin)h+=`<button class="go" data-a="again">もう一度</button>`;
+ else h+=`<div class="hand">${me.hand.map(c=>`<button class="c ${col(c)}" disabled>${c}</button>`).join('')}</div>`;
+ app.innerHTML=h;const lg=$('#log');if(lg)lg.scrollTop=lg.scrollHeight}
+function human(c){return new Promise(res=>{const p=c.p;U={sel:new Set(),err:'',msg:'',btns:[]};
+ const done=v=>{U=null;render();res(v)},I=()=>[...U.sel].sort((a,b)=>a-b);
+ const chk=a=>{const x={k:a,i:a=='pass'?[]:I()};if(a=='shove'&&!x.i.length){const j=p.hand.indexOf(J.SH);if(j>=0)x.i=[j]}
+  if(J.legal(p,{role:c.role=='free'?'x':c.role,n:c.n},x))done(x);else{U.err='その選び方はできません(攻撃・反撃は同じ種類、キックはキック、押しのけは押しのけ1枚)';render()}};
+ if(c.role=='myo'){U.msg='ミョルニル: 手札を1枚捨てるとスピード2。捨てるカードを押す';U.btns=[['no','使わない']];U.pick=i=>done(i);U.on=()=>done(-1)}
+ else if(c.role=='dual'){U.msg='二刀流で戦いますか?(ダメージ2倍・スピード半減)';U.btns=[['y','はい'],['n','いいえ']];U.on=a=>done(a=='y')}
+ else if(c.role=='dis'){U.msg='ターン終了。捨てたい手札を選んで「確定」(選ばなければそのまま補充)';U.btns=[['ok','確定']];U.on=()=>done(I())}
+ else if(c.role=='free'){U.msg='キック成功! 対処できない攻撃を1回。攻撃カードを選ぶ';U.btns=[['attack','攻撃'],['skip','やめる']];U.on=a=>a=='skip'?done({k:'skip'}):chk(a)}
+ else{const att=c.role=='att',r=c.n+(J.W(p).h==1&&p.sh=='なし'?1:0);
+  U.msg=att?`あなたが攻撃側(行動${c.n+1}回目)。伏せるカードを選んで、行動を決める`:`相手は${c.n}枚を伏せた。${c.kn?`(相手の攻撃は${c.kn.type}×${c.kn.n}と公開済み。キックは意味がないので選べません)`:''}ガードに必要な枚数: ${r}枚${p.hand.length<r?'(手札が足りず、ガードは失敗します)':'(出す枚数が足りないと不足分+1枚を捨て、払えないと失敗)'}。カードを選んで行動を決める`;
+  U.btns=[[att?'attack':'counter',att?'攻撃':'反撃']];if(!c.kn)U.btns.push(['kick','キック']);if(!J.W(p).nog)U.btns.push(['guard','ガード']);U.btns.push(['shove','押しのけ']);if(att&&c.n>=1)U.btns.push(['pass','パス']);U.on=chk}
+ render()})}
+const cpuAg=async c=>{await new Promise(r=>setTimeout(r,450));return J.cpu(c)};
+function start(){const v=s=>$(s).value;let w2=v('#w2');if(w2=='random')w2=WN[J.rnd(WN.length)];
+ const P=[J.mkP('あなた',v('#w1'),v('#s1'),$('#d1').checked,human),J.mkP('CPU',w2,v('#s2'),$('#d2').checked,cpuAg)];
+ L=[];fin=0;G=J.mkG(P,m=>{L.push(m);render()});G.sl=ms=>new Promise(r=>setTimeout(r,ms));render();
+ J.play(G).then(w=>{L.push(w?`★ ${w.name}の勝利!`:'引き分け(150ターンを超えた)');fin=1;render()})}
+app.onclick=e=>{const t=e.target.closest('[data-i],[data-a]');if(!t)return;
+ if(t.dataset.a=='go')return start();if(t.dataset.a=='again'){G=null;fin=0;return render()}
+ if(!U)return;if(t.dataset.i!=null){const i=+t.dataset.i;if(U.pick)return U.pick(i);U.sel.has(i)?U.sel.delete(i):U.sel.add(i);U.err='';render()}else U.on(t.dataset.a)};
+render();
+</script></body></html>
